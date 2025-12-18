@@ -1,0 +1,45 @@
+package com.example.eventghar
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.eventghar.ui.auth.ForgotPasswordScreen
+import com.example.eventghar.ui.auth.LoginScreen
+import com.example.eventghar.ui.auth.RegistrationScreen
+import com.example.eventghar.ui.dashboard.DashboardScreen
+
+@Composable
+fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "login") {
+        composable("login") { 
+            LoginScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onThemeToggle = onThemeToggle
+            ) 
+        }
+        composable("registration") { 
+            RegistrationScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onThemeToggle = onThemeToggle
+            ) 
+        }
+        composable("forgot_password") { 
+            ForgotPasswordScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onThemeToggle = onThemeToggle
+            ) 
+        }
+        composable("dashboard") { 
+            DashboardScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onThemeToggle = onThemeToggle
+            ) 
+        }
+    }
+}

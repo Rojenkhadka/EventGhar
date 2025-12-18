@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "283168190546",
+    "project_id": "eventghar-91c8b",
+    "storage_bucket": "eventghar-91c8b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:283168190546:android:5e616232fa04b0fde46f8b",
+        "android_client_info": {
+          "package_name": "com.example.eventghar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgTG3ZLRnOpvazQWU_5TIen1SuCREjODA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

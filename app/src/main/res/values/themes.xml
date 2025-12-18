@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.EventGhar" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Splash Screen Theme -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Set the splash screen background -->
+        <item name="windowSplashScreenBackground">@color/dark_blue</item>
+        <!-- Set the splash screen icon -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <!-- Set the theme to be used after the splash screen -->
+        <item name="postSplashScreenTheme">@style/Theme.EventGhar</item>
+    </style>
+</resources>
