@@ -1,11 +1,13 @@
 package com.example.eventghar.ui.auth
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import android.util.Patterns
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.* 
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,7 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -33,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.eventghar.R
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.firestore
 
 @Composable
 fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
@@ -45,7 +48,78 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
     var passwordError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
+    val db = Firebase.firestore
     val focusManager = LocalFocusManager.current
+
+    val onLogin = {
+        focusManager.clearFocus()
+        if (email == "admin@eventghar.com" && password == "admin123") {
+            navController.navigate("admin_dashboard") { popUpTo("login") { inclusive = true } }
+        } else {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val activeNetwork = connectivityManager.activeNetwork
+            val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+            val isConnected = networkCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+
+            if (!isConnected) {
+                emailError = "No internet connection"
+                passwordError = " "
+            } else {
+                var isFormValid = true
+                if (email.isBlank()) {
+                    emailError = "Email cannot be empty"
+                    isFormValid = false
+                } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                    emailError = "Invalid email format"
+                    isFormValid = false
+                }
+
+                if (password.isBlank()) {
+                    passwordError = "Password cannot be empty"
+                    isFormValid = false
+                }
+
+                if (isFormValid) {
+                    isLoading = true
+                    auth.signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val user = task.result?.user
+                                if (user != null) {
+                                    db.collection("users").document(user.uid).get()
+                                        .addOnSuccessListener { document ->
+                                            isLoading = false
+                                            if (document != null && document.exists()) {
+                                                val role = document.getString("role")
+                                                if (role == "Organizer") {
+                                                    navController.navigate("organizer_dashboard") { popUpTo("login") { inclusive = true } }
+                                                } else {
+                                                    navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                                }
+                                            } else {
+                                                navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                            }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            isLoading = false
+                                            Log.e("LoginScreen", "Error getting user role", e)
+                                            navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                        }
+                                } else {
+                                    isLoading = false
+                                }
+                            } else {
+                                isLoading = false
+                                val exception = task.exception
+                                Log.e("LoginScreen", "Login failed", exception)
+                                emailError = "Check your email and password"
+                                passwordError = " "
+                            }
+                        }
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -85,13 +159,14 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
 
                     TextField(
                         value = email,
-                        onValueChange = { 
-                            email = it 
+                        onValueChange = {
+                            email = it
                             emailError = null
                         },
                         label = { Text("Email") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
+                        singleLine = true,
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Email,
@@ -119,13 +194,14 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
 
                     TextField(
                         value = password,
-                        onValueChange = { 
+                        onValueChange = {
                             password = it
                             passwordError = null
                         },
                         label = { Text("Password") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
+                        singleLine = true,
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
@@ -144,7 +220,7 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
                             }
                         },
                         keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        keyboardActions = KeyboardActions(onDone = { onLogin() }),
                         isError = passwordError != null,
                         supportingText = {
                             passwordError?.let {
@@ -170,37 +246,7 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = {
-                            var isFormValid = true
-                            if (email.isBlank()) {
-                                emailError = "Email cannot be empty"
-                                isFormValid = false
-                            } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                                emailError = "Invalid email format"
-                                isFormValid = false
-                            }
-
-                            if (password.isBlank()) {
-                                passwordError = "Password cannot be empty"
-                                isFormValid = false
-                            }
-
-                            if (isFormValid) {
-                                isLoading = true
-                                auth.signInWithEmailAndPassword(email, password)
-                                    .addOnCompleteListener { task ->
-                                        isLoading = false
-                                        if (task.isSuccessful) {
-                                            navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
-                                        } else {
-                                            val exception = task.exception
-                                            Log.e("LoginScreen", "Login failed", exception)
-                                            emailError = "Check your email and password"
-                                            passwordError = " "
-                                        }
-                                    }
-                            }
-                        },
+                        onClick = { onLogin() },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         enabled = !isLoading
                     ) {
