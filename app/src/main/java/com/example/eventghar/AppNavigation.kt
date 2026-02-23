@@ -4,10 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.eventghar.ui.admin.AdminDashboardScreen
 import com.example.eventghar.ui.auth.ForgotPasswordScreen
 import com.example.eventghar.ui.auth.LoginScreen
 import com.example.eventghar.ui.auth.RegistrationScreen
 import com.example.eventghar.ui.dashboard.DashboardScreen
+import com.example.eventghar.ui.organizer.OrganizerDashboardScreen
 
 @Composable
 fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
@@ -40,6 +42,12 @@ fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
                 isDarkTheme = isDarkTheme,
                 onThemeToggle = onThemeToggle
             ) 
+        }
+        composable("admin_dashboard") { 
+            AdminDashboardScreen(navController = navController) 
+        }
+        composable("organizer_dashboard") { 
+            OrganizerDashboardScreen(navController = navController) 
         }
     }
 }
