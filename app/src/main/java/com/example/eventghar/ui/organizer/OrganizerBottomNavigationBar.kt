@@ -60,118 +60,137 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.graphicsLayer
 import java.util.Calendar
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavController
+import com.example.eventghar.ui.profile.UserProfileViewModel
 
 @Composable
-fun OrganizerBottomNavigationBar() {
+fun OrganizerBottomNavigationBar(navController: NavController) {
     var selectedItem by remember { mutableIntStateOf(0) }
     val items = listOf("Home", "My Events", "Analytics", "Settings")
     val icons = listOf(Icons.Default.Home, Icons.Default.Event, Icons.Default.Analytics, Icons.Default.Settings)
 
-    // Navigation state: "dashboard" or "create"
-    val navState = remember { mutableStateOf("dashboard") }
-
     // Event CRUD state
     val eventViewModel: EventViewModel = viewModel()
+    val profileViewModel: UserProfileViewModel = viewModel()
     val showDialog = remember { mutableStateOf(false) }
     val editEvent = remember { mutableStateOf<Event?>(null) }
 
-    if (navState.value == "create") {
-        CreateEventScreen(
-            onBack = { navState.value = "dashboard" },
-            onPublish = { event ->
-                eventViewModel.addEvent(event)
-                navState.value = "dashboard"
-            },
-            onSaveDraft = { event ->
-                eventViewModel.addEvent(event)
-                navState.value = "dashboard"
+    Scaffold(
+        bottomBar = {
+            BottomAppBar(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp),
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(icons[0], contentDescription = items[0]) },
+                    label = { Text(items[0]) },
+                    selected = selectedItem == 0,
+                    onClick = { selectedItem = 0 },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                NavigationBarItem(
+                    icon = { Icon(icons[1], contentDescription = items[1]) },
+                    label = { Text(items[1]) },
+                    selected = selectedItem == 1,
+                    onClick = { selectedItem = 1 },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                NavigationBarItem(
+                    icon = { Icon(icons[2], contentDescription = items[2]) },
+                    label = { Text(items[2]) },
+                    selected = selectedItem == 2,
+                    onClick = { selectedItem = 2 },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                NavigationBarItem(
+                    icon = { Icon(icons[3], contentDescription = items[3]) },
+                    label = { Text(items[3]) },
+                    selected = selectedItem == 3,
+                    onClick = { selectedItem = 3 },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
             }
-        )
-    } else {
-        Scaffold(
-            bottomBar = {
-                Box(Modifier.fillMaxWidth()) {
-                    BottomAppBar(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(72.dp),
-                        tonalElevation = 8.dp
-                    ) {
-                        NavigationBarItem(
-                            icon = { Icon(icons[0], contentDescription = items[0]) },
-                            label = { Text(items[0]) },
-                            selected = selectedItem == 0,
-                            onClick = { selectedItem = 0 },
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(icons[1], contentDescription = items[1]) },
-                            label = { Text(items[1]) },
-                            selected = selectedItem == 1,
-                            onClick = { selectedItem = 1 },
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-
-                        Spacer(Modifier.weight(1f, fill = true))
-
-                        NavigationBarItem(
-                            icon = { Icon(icons[2], contentDescription = items[2]) },
-                            label = { Text(items[2]) },
-                            selected = selectedItem == 2,
-                            onClick = { selectedItem = 2 },
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(icons[3], contentDescription = items[3]) },
-                            label = { Text(items[3]) },
-                            selected = selectedItem == 3,
-                            onClick = { selectedItem = 3 },
-                            modifier = Modifier.padding(top = 12.dp)
-                        )
-                    }
-                    FloatingActionButton(
-                        onClick = {
-                            navState.value = "create"
-                        },
-                        shape = CircleShape,
-                        containerColor = Color.Blue,
-                        contentColor = Color.White,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .offset(y = (-28).dp)
-                            .zIndex(1f)
-                    ) {
-                        Icon(Icons.Filled.Add, "New Event")
-                    }
-                }
-            },
-        ) { paddingValues ->
-            Box(Modifier.padding(paddingValues)) {
-                // Event list
-                LazyColumn {
-                    items(eventViewModel.events) { event ->
-                        EventCard(
-                            event = event,
-                            onEdit = {
-                                editEvent.value = event
-                                showDialog.value = true
-                            },
-                            onDelete = { eventViewModel.deleteEvent(event.id) }
-                        )
-                    }
-                }
-                // Event dialog
-                if (showDialog.value) {
-                    EventDialog(
-                        event = editEvent.value,
-                        onDismiss = { showDialog.value = false },
-                        onSave = { event ->
-                            if (event.id == 0) eventViewModel.addEvent(event)
-                            else eventViewModel.updateEvent(event)
-                            showDialog.value = false
+        },
+    ) { paddingValues ->
+        Box(Modifier.padding(paddingValues)) {
+            when (selectedItem) {
+                0 -> {
+                    // Home: event list
+                    LazyColumn {
+                        items(eventViewModel.events) { event ->
+                            EventCard(
+                                event = event,
+                                onEdit = {
+                                    editEvent.value = event
+                                    showDialog.value = true
+                                },
+                                onDelete = { eventViewModel.deleteEvent(event.id) }
+                            )
                         }
-                    )
+                    }
+                    if (showDialog.value) {
+                        EventDialog(
+                            event = editEvent.value,
+                            onDismiss = { showDialog.value = false },
+                            onSave = { event ->
+                                if (event.id == 0) eventViewModel.addEvent(event)
+                                else eventViewModel.updateEvent(event)
+                                showDialog.value = false
+                            }
+                        )
+                    }
+                }
+                1 -> {
+                    // My Events: same event list with FAB for creating
+                    Box(Modifier.fillMaxSize()) {
+                        LazyColumn {
+                            items(eventViewModel.events) { event ->
+                                EventCard(
+                                    event = event,
+                                    onEdit = {
+                                        editEvent.value = event
+                                        showDialog.value = true
+                                    },
+                                    onDelete = { eventViewModel.deleteEvent(event.id) }
+                                )
+                            }
+                        }
+                        FloatingActionButton(
+                            onClick = { showDialog.value = true; editEvent.value = null },
+                            shape = CircleShape,
+                            containerColor = Color.Blue,
+                            contentColor = Color.White,
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, "New Event")
+                        }
+                        if (showDialog.value) {
+                            EventDialog(
+                                event = editEvent.value,
+                                onDismiss = { showDialog.value = false },
+                                onSave = { event ->
+                                    if (event.id == 0) eventViewModel.addEvent(event)
+                                    else eventViewModel.updateEvent(event)
+                                    showDialog.value = false
+                                }
+                            )
+                        }
+                    }
+                }
+                2 -> {
+                    // Analytics placeholder
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Analytics coming soon")
+                    }
+                }
+                3 -> {
+                    // Settings
+                    OrganizerSettingsScreen(navController = navController, profileViewModel = profileViewModel)
                 }
             }
         }

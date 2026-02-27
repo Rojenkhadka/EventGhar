@@ -10,6 +10,8 @@ import com.example.eventghar.ui.auth.LoginScreen
 import com.example.eventghar.ui.auth.RegistrationScreen
 import com.example.eventghar.ui.dashboard.DashboardScreen
 import com.example.eventghar.ui.organizer.OrganizerDashboardScreen
+import com.example.eventghar.ui.profile.EditProfileScreen
+import com.example.eventghar.ui.user.UserDashboardScreen
 
 @Composable
 fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
@@ -43,11 +45,17 @@ fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
                 onThemeToggle = onThemeToggle
             ) 
         }
+        composable("user_dashboard") {
+            UserDashboardScreen(navController = navController)
+        }
         composable("admin_dashboard") { 
             AdminDashboardScreen(navController = navController) 
         }
         composable("organizer_dashboard") { 
             OrganizerDashboardScreen(navController = navController) 
+        }
+        composable("edit_profile") {
+            EditProfileScreen(navController = navController)
         }
     }
 }

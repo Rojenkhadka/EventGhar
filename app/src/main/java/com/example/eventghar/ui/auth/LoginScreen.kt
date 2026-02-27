@@ -34,9 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.eventghar.R
+import com.example.eventghar.data.UserProfileDataStore
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
@@ -90,20 +94,32 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
                                         .addOnSuccessListener { document ->
                                             isLoading = false
                                             if (document != null && document.exists()) {
-                                                val role = document.getString("role")
+                                                val role = document.getString("role") ?: ""
+                                                val name = document.getString("name") ?: ""
+                                                val phone = document.getString("phone") ?: ""
+                                                val dataStore = UserProfileDataStore(context)
+                                                CoroutineScope(Dispatchers.IO).launch {
+                                                    dataStore.saveUserProfile(
+                                                        uid = user.uid,
+                                                        name = name,
+                                                        email = user.email ?: "",
+                                                        phone = phone,
+                                                        role = role
+                                                    )
+                                                }
                                                 if (role == "Organizer") {
                                                     navController.navigate("organizer_dashboard") { popUpTo("login") { inclusive = true } }
                                                 } else {
-                                                    navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                                    navController.navigate("user_dashboard") { popUpTo("login") { inclusive = true } }
                                                 }
                                             } else {
-                                                navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                                navController.navigate("user_dashboard") { popUpTo("login") { inclusive = true } }
                                             }
                                         }
                                         .addOnFailureListener { e ->
                                             isLoading = false
                                             Log.e("LoginScreen", "Error getting user role", e)
-                                            navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                            navController.navigate("user_dashboard") { popUpTo("login") { inclusive = true } }
                                         }
                                 } else {
                                     isLoading = false
