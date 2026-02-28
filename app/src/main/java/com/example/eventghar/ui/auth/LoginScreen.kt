@@ -46,10 +46,58 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
     var isLoading by remember { mutableStateOf(false) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    // Role picker shown when user exists in Auth but not in Firestore users collection
+    var showRolePicker by remember { mutableStateOf(false) }
+    var pendingUserId by remember { mutableStateOf("") }
+    var pendingUserEmail by remember { mutableStateOf("") }
+    var pendingUserName by remember { mutableStateOf("") }
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
     val db = Firebase.firestore
     val focusManager = LocalFocusManager.current
+
+    // Role picker dialog — shown when no Firestore document exists for this user
+    if (showRolePicker) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Select Your Role", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Your account profile was not found. Please select your role to continue:")
+                    Spacer(Modifier.height(8.dp))
+                    Text("This only happens once for existing accounts.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color.Gray)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showRolePicker = false
+                    val profileData = hashMapOf(
+                        "name" to pendingUserName,
+                        "email" to pendingUserEmail,
+                        "role" to "Organizer",
+                        "phone" to "",
+                        "profileImageUri" to ""
+                    )
+                    db.collection("users").document(pendingUserId).set(profileData)
+                    navController.navigate("organizer_dashboard") { popUpTo("login") { inclusive = true } }
+                }) { Text("I'm an Organizer") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showRolePicker = false
+                    val profileData = hashMapOf(
+                        "name" to pendingUserName,
+                        "email" to pendingUserEmail,
+                        "role" to "User",
+                        "phone" to "",
+                        "profileImageUri" to ""
+                    )
+                    db.collection("users").document(pendingUserId).set(profileData)
+                    navController.navigate("user_dashboard") { popUpTo("login") { inclusive = true } }
+                }) { Text("I'm a User") }
+            }
+        )
+    }
 
     val onLogin = {
         focusManager.clearFocus()
@@ -89,21 +137,33 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
                                     db.collection("users").document(user.uid).get()
                                         .addOnSuccessListener { document ->
                                             isLoading = false
-                                            if (document != null && document.exists()) {
-                                                val role = document.getString("role")
-                                                if (role == "Organizer") {
-                                                    navController.navigate("organizer_dashboard") { popUpTo("login") { inclusive = true } }
-                                                } else {
-                                                    navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                            val role = document?.getString("role") ?: ""
+                                            Log.d("LoginScreen", "uid=${user.uid} role='$role' docExists=${document?.exists()}")
+
+                                            if (role == "Organizer") {
+                                                navController.navigate("organizer_dashboard") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            } else if (role == "User") {
+                                                navController.navigate("user_dashboard") {
+                                                    popUpTo("login") { inclusive = true }
                                                 }
                                             } else {
-                                                navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                                // No Firestore document — show role picker so user can identify themselves
+                                                pendingUserId = user.uid
+                                                pendingUserEmail = user.email ?: email
+                                                pendingUserName = user.displayName ?: email.substringBefore("@")
+                                                showRolePicker = true
                                             }
                                         }
                                         .addOnFailureListener { e ->
                                             isLoading = false
-                                            Log.e("LoginScreen", "Error getting user role", e)
-                                            navController.navigate("dashboard") { popUpTo("login") { inclusive = true } }
+                                            Log.e("LoginScreen", "Firestore role fetch failed: ${e.message}", e)
+                                            // Firestore read failed — show role picker so user can still log in
+                                            pendingUserId = user.uid
+                                            pendingUserEmail = user.email ?: email
+                                            pendingUserName = user.displayName ?: email.substringBefore("@")
+                                            showRolePicker = true
                                         }
                                 } else {
                                     isLoading = false
@@ -126,16 +186,6 @@ fun LoginScreen(navController: NavController, isDarkTheme: Boolean, onThemeToggl
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        IconButton(
-            onClick = onThemeToggle,
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-        ) {
-            Icon(
-                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                contentDescription = "Toggle Theme",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Card(
                 modifier = Modifier

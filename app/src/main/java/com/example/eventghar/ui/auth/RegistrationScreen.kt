@@ -103,11 +103,13 @@ fun RegistrationScreen(navController: NavController, isDarkTheme: Boolean, onThe
                             val userProfile = hashMapOf(
                                 "name" to name,
                                 "email" to email,
-                                "role" to selectedRole
+                                "role" to selectedRole,
+                                "phone" to "",
+                                "profileImageUri" to ""
                             )
                             db.collection("users").document(user.uid)
                                 .set(userProfile)
-                                .addOnSuccessListener { Log.d("RegistrationScreen", "User profile created for ${user.uid}") }
+                                .addOnSuccessListener { Log.d("RegistrationScreen", "User profile created for ${user.uid} role=$selectedRole") }
                                 .addOnFailureListener { e -> Log.w("RegistrationScreen", "Error adding user profile", e) }
                         }
                         Toast.makeText(context, "Registration successful!", Toast.LENGTH_SHORT).show()
@@ -129,16 +131,6 @@ fun RegistrationScreen(navController: NavController, isDarkTheme: Boolean, onThe
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        IconButton(
-            onClick = onThemeToggle,
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-        ) {
-            Icon(
-                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                contentDescription = "Toggle Theme",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Card(
                 modifier = Modifier

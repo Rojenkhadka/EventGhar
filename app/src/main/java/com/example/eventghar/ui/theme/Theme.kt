@@ -15,10 +15,12 @@ import androidx.core.view.WindowCompat
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF3A86FF),
     background = Color(0xFF0D1B2A),
-    surface = Color(0x30FFFFFF), // Semi-transparent card for dark theme
+    surface = Color(0xFF1A2C3D),
+    surfaceVariant = Color(0xFF1E3040),
     onPrimary = Color.White,
     onBackground = Color(0xFFE0E1DD),
-    onSurface = Color(0xFFE0E1DD)
+    onSurface = Color(0xFFE0E1DD),
+    onSurfaceVariant = Color(0xFFB0BEC5)
 )
 
 private val LightColorScheme = lightColorScheme(
