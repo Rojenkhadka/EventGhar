@@ -1,8 +1,15 @@
-/build
+.gradle/
+build/
+*/build/
+
+local.properties
+
+.idea/
 *.iml
-   .gradle
-   /local.properties
-   /build/
-   /app/build/
-   .idea/
-   google-services.json
+.kotlin/
+
+captures/
+.externalNativeBuild/
+.cxx/
+
+google-services.json
