@@ -24,7 +24,7 @@ fun AdminDashboardScreen(navController: NavController) {
                         FirebaseAuth.getInstance().signOut()
                         navController.navigate("login") { popUpTo(navController.graph.startDestinationId) { inclusive = true } }
                     }) {
-                        Icon(imageVector = Icons.Default.Logout, contentDescription = "Logout")
+                        Icon(imageVector = Icons.Filled.Logout, contentDescription = "Logout")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

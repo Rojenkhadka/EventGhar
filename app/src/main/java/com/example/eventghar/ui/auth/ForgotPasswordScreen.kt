@@ -42,16 +42,6 @@ fun ForgotPasswordScreen(navController: NavController, isDarkTheme: Boolean, onT
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        IconButton(
-            onClick = onThemeToggle,
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-        ) {
-            Icon(
-                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                contentDescription = "Toggle Theme",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Card(
                 modifier = Modifier
