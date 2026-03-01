@@ -561,6 +561,30 @@ private fun TicketRow(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 @Composable
 fun UserSettingsScreen(navController: NavController, userProfile: UserProfile, isDarkTheme: Boolean = false, onThemeToggle: () -> Unit = {}) {
     val context = LocalContext.current
+
+    // Use live ViewModel — same instance as parent (Activity-scoped)
+    val userProfileViewModel: UserProfileViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+    )
+    val liveProfile by userProfileViewModel.userProfile.collectAsState()
+
+    // Force a Firestore refresh every time this settings tab is shown
+    LaunchedEffect(Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            try { userProfileViewModel.loadUserProfileFromFirestore(uid) } catch (_: Exception) {}
+        }
+    }
+
+    // Always use live Firestore data; fall back to passed-in only if not yet loaded
+    val profileImageUri = liveProfile.profileImageUri.ifBlank { userProfile.profileImageUri }
+    val displayName = liveProfile.name.ifBlank {
+        userProfile.name.ifBlank { FirebaseAuth.getInstance().currentUser?.displayName ?: "" }
+    }
+    val displayEmail = liveProfile.email.ifBlank {
+        userProfile.email.ifBlank { FirebaseAuth.getInstance().currentUser?.email ?: "" }
+    }
+
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
@@ -582,14 +606,6 @@ fun UserSettingsScreen(navController: NavController, userProfile: UserProfile, i
             confirmPasswordError = null
             isChangingPassword = false
         }
-    }
-
-    val profileImageUri = userProfile.profileImageUri
-    val displayName = userProfile.name.ifBlank {
-        FirebaseAuth.getInstance().currentUser?.displayName ?: ""
-    }
-    val displayEmail = userProfile.email.ifEmpty {
-        FirebaseAuth.getInstance().currentUser?.email ?: ""
     }
 
     if (showLogoutDialog) {
@@ -773,18 +789,22 @@ fun UserSettingsScreen(navController: NavController, userProfile: UserProfile, i
                     contentAlignment = Alignment.Center
                 ) {
                     if (profileImageUri.isNotEmpty()) {
-                        val settingsImgModel: Any = when {
-                            profileImageUri.startsWith("http://") || profileImageUri.startsWith("https://") -> profileImageUri
-                            profileImageUri.startsWith("content://") -> android.net.Uri.parse(profileImageUri)
-                            File(profileImageUri).exists() -> File(profileImageUri)
-                            else -> profileImageUri
+                        val settingsImgModel = com.example.eventghar.ui.common.resolveImageModel(profileImageUri)
+                        if (settingsImgModel != null) {
+                            AsyncImage(
+                                model = settingsImgModel,
+                                contentDescription = "Profile Photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
-                        AsyncImage(
-                            model = settingsImgModel,
-                            contentDescription = "Profile Photo",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
                     } else {
                         Icon(
                             Icons.Default.Person,

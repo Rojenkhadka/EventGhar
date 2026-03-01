@@ -46,10 +46,30 @@ fun OrganizerSettingsScreen(
     onThemeToggle: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val userProfileViewModel: UserProfileViewModel = viewModel(factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application))
-    val profileFromVM by userProfileViewModel.userProfile.collectAsState()
-    // Prefer the userProfile passed in, but fall back to ViewModel data if blank
-    val effectiveProfile = if (userProfile.name.isNotBlank()) userProfile else profileFromVM
+    // Use the same ViewModel instance as the parent — scoped to the Activity
+    val userProfileViewModel: UserProfileViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+    )
+    // Collect live profile from Firestore — this is the single source of truth
+    val liveProfile by userProfileViewModel.userProfile.collectAsState()
+
+    // Trigger a Firestore refresh every time this screen is shown
+    LaunchedEffect(Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            userProfileViewModel.loadUserProfileFromFirestore(uid)
+        }
+    }
+
+    // Always prefer the live Firestore data; fall back to passed-in userProfile
+    val profileImageUri = liveProfile.profileImageUri.ifBlank { userProfile.profileImageUri }
+    val displayName = liveProfile.name.ifBlank {
+        userProfile.name.ifBlank { FirebaseAuth.getInstance().currentUser?.displayName ?: "" }
+    }
+    val displayEmail = liveProfile.email.ifBlank {
+        userProfile.email.ifBlank { FirebaseAuth.getInstance().currentUser?.email ?: "" }
+    }
+    val isVerified = liveProfile.isVerified || userProfile.isVerified
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -74,13 +94,6 @@ fun OrganizerSettingsScreen(
         }
     }
 
-    val profileImageUri = effectiveProfile.profileImageUri
-    val displayName = effectiveProfile.name.ifBlank {
-        FirebaseAuth.getInstance().currentUser?.displayName ?: ""
-    }
-    val displayEmail = effectiveProfile.email.ifEmpty {
-        FirebaseAuth.getInstance().currentUser?.email ?: ""
-    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -264,12 +277,22 @@ fun OrganizerSettingsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     if (profileImageUri.isNotEmpty()) {
-                        AsyncImage(
-                            model = profileImageUri,
-                            contentDescription = "Profile Photo",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        val imgModel = com.example.eventghar.ui.common.resolveImageModel(profileImageUri)
+                        if (imgModel != null) {
+                            AsyncImage(
+                                model = imgModel,
+                                contentDescription = "Profile Photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     } else {
                         Icon(
                             Icons.Default.Person,
@@ -295,7 +318,7 @@ fun OrganizerSettingsScreen(
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (userProfile.isVerified) {
+                    if (isVerified) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(

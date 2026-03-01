@@ -175,10 +175,9 @@ private fun MyEventCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     // Live-reactive: recomposes whenever any booking is added/removed
-    val allBookings by BookingDataStore.bookingsFlow(context).collectAsState(initial = emptyList())
+    val allBookings by BookingDataStore.allBookingsFlow().collectAsState(initial = emptyList())
     val ticketsSold = allBookings.filter { it.eventId == event.id }.sumOf { it.ticketCount }
     val ticketsTotal = event.ticketsTotal
     val ticketsAvailable = (ticketsTotal - ticketsSold).coerceAtLeast(0)
@@ -383,38 +382,53 @@ private fun MyEventCard(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Action Buttons: Manage, View Details, and Delete
+                // Action Buttons: Delete, Manage, View Details
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
                         onClick = { showDeleteDialog = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
                         border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
                     ) {
-                        Text("Delete", fontSize = 13.sp)
+                        Text(
+                            "Delete",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                     Button(
                         onClick = onManage,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
                     ) {
-                        Text("Manage", fontSize = 13.sp)
+                        Text(
+                            "Manage",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                     Button(
                         onClick = onViewDetails,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.3f),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5))
                     ) {
-                        Text("View Details", fontSize = 13.sp)
+                        Text(
+                            "View Details",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }

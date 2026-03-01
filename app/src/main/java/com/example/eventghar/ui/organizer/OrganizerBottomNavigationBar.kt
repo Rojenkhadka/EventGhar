@@ -3,6 +3,7 @@ package com.example.eventghar.ui.organizer
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -105,9 +106,15 @@ fun OrganizerBottomNavigationBar(navController: androidx.navigation.NavControlle
     val icons = listOf(Icons.Default.Home, Icons.Default.Event, Icons.Default.Analytics, Icons.Default.Settings)
 
 
-    // Navigation state: "dashboard", "create", or "manage"
+    // Navigation state: "dashboard", "create", "manage", or "details"
     var navState by remember { mutableStateOf("dashboard") }
     var selectedEventForManagement by remember { mutableStateOf<Event?>(null) }
+
+    // Intercept system back button when NOT on dashboard —
+    // prevents NavController from popping back to user_dashboard
+    BackHandler(enabled = navState != "dashboard") {
+        navState = "dashboard"
+    }
 
     // Event CRUD state
     val localContext = LocalContext.current
@@ -340,7 +347,7 @@ fun OrganizerBottomNavigationBar(navController: androidx.navigation.NavControlle
                     }
                     // Show Analytics page
                     if (selectedItem == 2) {
-                        val allBookings by BookingDataStore.bookingsFlow(localContext).collectAsState(initial = emptyList())
+                        val allBookings by BookingDataStore.allBookingsFlow().collectAsState(initial = emptyList())
                         OrganizerAnalyticsScreen(events = organizerEvents, allBookings = allBookings)
                     }
                     // Show Settings page
@@ -374,6 +381,9 @@ fun CreateEventScreen(
     onPublish: (Event) -> Unit,
     onSaveDraft: (Event) -> Unit
 ) {
+    // Intercept system back button — go back to dashboard, not NavController stack
+    BackHandler { onBack() }
+
     val context = LocalContext.current
     val eventName = remember { mutableStateOf("") }
     val category = remember { mutableStateOf("") }

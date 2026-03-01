@@ -3,6 +3,7 @@ package com.example.eventghar.ui.organizer
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.eventghar.data.BookingDataStore
 import com.example.eventghar.data.EventDataStore
 import com.example.eventghar.data.StorageUtil
 import com.google.firebase.auth.FirebaseAuth
@@ -45,11 +46,16 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteEvent(eventId: String) {
         viewModelScope.launch {
-            // Also delete the cover image from Storage
+            // Delete cover image from Storage
             val event = EventDataStore.getEvent(eventId)
             if (event != null && StorageUtil.isRemoteUrl(event.coverImageUri)) {
                 StorageUtil.deleteImage(event.coverImageUri)
             }
+            // Cascade-delete all bookings for this event so they disappear from user My Bookings
+            try {
+                BookingDataStore.deleteBookingsForEvent(eventId)
+            } catch (_: Exception) { /* best-effort */ }
+            // Delete the event itself
             EventDataStore.deleteEvent(eventId)
         }
     }

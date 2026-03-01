@@ -1,6 +1,8 @@
 package com.example.eventghar.data
 
 import com.example.eventghar.ui.user.Booking
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.channels.awaitClose
@@ -18,14 +20,25 @@ object BookingDataStore {
     private val bookingsCol = db.collection("bookings")
     private val eventsCol = db.collection("events")
 
+    private fun currentUid(): String =
+        FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
     /**
-     * Real-time Flow of ALL bookings (filters happen in ViewModels / UI).
+     * Real-time Flow of bookings for the current authenticated user only.
+     * This matches Firestore rules: allow read if userId == request.auth.uid
      */
     fun bookingsFlow(): Flow<List<Booking>> = callbackFlow {
+        val uid = currentUid()
+        if (uid.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
         val listener: ListenerRegistration = bookingsCol
+            .whereEqualTo("userId", uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    trySend(emptyList())
+                    trySend(emptyList<Booking>())
                     return@addSnapshotListener
                 }
                 val bookings = snapshot?.documents?.mapNotNull { doc ->
@@ -37,32 +50,70 @@ object BookingDataStore {
     }
 
     /**
-     * Atomically add a booking AND increment ticketsSold on the event document.
-     * Uses a Firestore transaction for cross-document consistency.
+     * Real-time Flow of ALL bookings (for organizer analytics / ticket counting).
+     * Firestore rule: allow read if request.auth != null
      */
-    suspend fun addBooking(booking: Booking) {
-        val eventRef = eventsCol.document(booking.eventId)
-        val bookingRef = bookingsCol.document(booking.id)
-
-        db.runTransaction { transaction ->
-            val eventSnapshot = transaction.get(eventRef)
-            val currentSold = eventSnapshot.getLong("ticketsSold")?.toInt() ?: 0
-            transaction.update(eventRef, "ticketsSold", currentSold + booking.ticketCount)
-            transaction.set(bookingRef, booking)
-        }.await()
+    fun allBookingsFlow(): Flow<List<Booking>> = callbackFlow {
+        val listener: ListenerRegistration = bookingsCol
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList<Booking>())
+                    return@addSnapshotListener
+                }
+                val bookings = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Booking::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                trySend(bookings)
+            }
+        awaitClose { listener.remove() }
     }
 
     /**
-     * Delete a single booking by ID.
+     * Flow of ALL bookings for a specific event (used by organizer for ticket count).
      */
+    fun bookingsForEventFlow(eventId: String): Flow<List<Booking>> = callbackFlow {
+        val listener: ListenerRegistration = bookingsCol
+            .whereEqualTo("eventId", eventId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList<Booking>())
+                    return@addSnapshotListener
+                }
+                val bookings = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Booking::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                trySend(bookings)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Add a booking document and increment ticketsSold on the event.
+     * Writes are done separately (no transaction) to avoid cross-collection permission issues.
+     */
+    suspend fun addBooking(booking: Booking) {
+        val uid = currentUid()
+        if (uid.isBlank()) throw IllegalStateException("User not authenticated")
+
+        // Generate doc ID if not provided
+        val docId = if (booking.id.isBlank()) bookingsCol.document().id else booking.id
+        val bookingWithId = booking.copy(id = docId, userId = uid)
+
+        // 1. Write the booking document
+        bookingsCol.document(docId).set(bookingWithId).await()
+
+        // 2. Increment ticketsSold on the event atomically
+        if (booking.eventId.isNotBlank()) {
+            eventsCol.document(booking.eventId)
+                .update("ticketsSold", FieldValue.increment(booking.ticketCount.toLong()))
+                .await()
+        }
+    }
+
     suspend fun deleteBooking(bookingId: String) {
         bookingsCol.document(bookingId).delete().await()
     }
 
-    /**
-     * Cascade-delete ALL bookings that belong to a given event.
-     * Called when an organizer deletes an event so users' bookings are cleaned up immediately.
-     */
     suspend fun deleteBookingsForEvent(eventId: String) {
         val snapshot = bookingsCol
             .whereEqualTo("eventId", eventId)
@@ -73,8 +124,7 @@ object BookingDataStore {
         batch.commit().await()
     }
 
-    // ── Legacy overloads — context parameter ignored for compile compatibility ──
-
+    // Legacy overloads — context parameter ignored for compile compatibility
     @Suppress("UNUSED_PARAMETER")
     fun bookingsFlow(context: Any): Flow<List<Booking>> = bookingsFlow()
 
@@ -83,10 +133,6 @@ object BookingDataStore {
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun saveBookings(context: Any, bookings: List<Booking>) {
-        val batch = db.batch()
-        bookings.forEach { booking ->
-            batch.set(bookingsCol.document(booking.id), booking)
-        }
-        batch.commit().await()
+        bookings.forEach { booking -> addBooking(booking) }
     }
 }

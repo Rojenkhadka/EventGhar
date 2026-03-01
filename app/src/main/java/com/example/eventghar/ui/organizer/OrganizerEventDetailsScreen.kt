@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import coil.compose.AsyncImage
 import com.example.eventghar.data.BookingDataStore
 import java.io.File
@@ -31,10 +32,11 @@ fun OrganizerEventDetailsScreen(
     event: Event,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
+    // Intercept system back button — go back to dashboard, not to NavController stack
+    BackHandler { onBack() }
 
     // Live-reactive bookings — recomposes whenever a user books a ticket
-    val allBookings by BookingDataStore.bookingsFlow(context).collectAsState(initial = emptyList())
+    val allBookings by BookingDataStore.allBookingsFlow().collectAsState(initial = emptyList())
     val ticketsSold = allBookings.filter { it.eventId == event.id }.sumOf { it.ticketCount }
     val ticketsTotal = event.ticketsTotal ?: 0
     val ticketsAvailable = (ticketsTotal - ticketsSold).coerceAtLeast(0)

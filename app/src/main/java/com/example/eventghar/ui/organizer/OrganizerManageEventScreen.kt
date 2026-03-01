@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +49,9 @@ fun OrganizerManageEventScreen(
     onBack: () -> Unit,
     onSave: (Event) -> Unit
 ) {
+    // Intercept system back button
+    BackHandler { onBack() }
+
     val context = LocalContext.current
     var eventName by remember { mutableStateOf(event.title) }
     // Pre-populate category from existing event
