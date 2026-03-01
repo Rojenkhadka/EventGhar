@@ -27,7 +27,6 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventghar.data.BookingDataStore
 import com.example.eventghar.ui.organizer.Event
-import java.io.File
 
 @Composable
 fun UserEventDetailScreen(
@@ -35,6 +34,7 @@ fun UserEventDetailScreen(
     navController: NavController
 ) {
     val context = LocalContext.current
+    // Use the dashboard's ViewModel if possible to prevent cancellation on popBackStack
     val viewModel: PublicEventViewModel = viewModel(
         factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
     )
@@ -42,10 +42,13 @@ fun UserEventDetailScreen(
     val myBookings by viewModel.myBookings.collectAsState()
     val isBooked = myBookings.any { it.eventId == event.id }
 
-    // Live remaining tickets — recomposes instantly when any user books
-    val allBookings by BookingDataStore.bookingsFlow(context).collectAsState(initial = emptyList())
-    val ticketsSoldLive = allBookings.filter { it.eventId == event.id }.sumOf { it.ticketCount }
-    val ticketsTotal = event.ticketsTotal ?: 0
+    val bookingLoading by viewModel.bookingLoading.collectAsState()
+    val bookingStatus by viewModel.bookingStatus.collectAsState()
+
+    // Live remaining tickets — counts all bookings for this specific event
+    val allBookings by BookingDataStore.bookingsForEventFlow(event.id).collectAsState(initial = emptyList())
+    val ticketsSoldLive = allBookings.sumOf { it.ticketCount }
+    val ticketsTotal = event.ticketsTotal
     val ticketsRemaining = (ticketsTotal - ticketsSoldLive).coerceAtLeast(0)
     val isSoldOut = ticketsTotal > 0 && ticketsRemaining == 0
 
@@ -53,13 +56,21 @@ fun UserEventDetailScreen(
     var showBookingDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
-    val price = event.price.toFloatOrNull() ?: 0f
+    val price = event.price.replace("Rs", "").replace(",", "").trim().toFloatOrNull() ?: 0f
     val total = price * ticketCount
+
+    // Watch for successful booking status
+    LaunchedEffect(bookingStatus) {
+        if (bookingStatus == true) {
+            showSuccessDialog = true
+            viewModel.resetBookingStatus()
+        }
+    }
 
     // Booking confirmation dialog
     if (showBookingDialog) {
         AlertDialog(
-            onDismissRequest = { showBookingDialog = false },
+            onDismissRequest = { if (!bookingLoading) showBookingDialog = false },
             title = { Text("Confirm Booking", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
@@ -77,6 +88,7 @@ fun UserEventDetailScreen(
                     ) {
                         FilledIconButton(
                             onClick = { if (ticketCount > 1) ticketCount-- },
+                            enabled = !bookingLoading,
                             colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) { Icon(Icons.Default.Remove, contentDescription = "Decrease") }
                         Text(
@@ -88,7 +100,7 @@ fun UserEventDetailScreen(
                         FilledIconButton(
                             onClick = { if (ticketsRemaining == 0 || ticketCount < ticketsRemaining) ticketCount++ },
                             colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                            enabled = ticketsRemaining == 0 || ticketCount < ticketsRemaining
+                            enabled = !bookingLoading && (ticketsRemaining == 0 || ticketCount < ticketsRemaining)
                         ) { Icon(Icons.Default.Add, contentDescription = "Increase") }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -103,21 +115,26 @@ fun UserEventDetailScreen(
                             fontSize = 16.sp
                         )
                     }
+                    
+                    if (bookingLoading) {
+                        Spacer(Modifier.height(16.dp))
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
-                    onClick = {
-                        viewModel.bookEvent(event, ticketCount)
-                        showBookingDialog = false
-                        showSuccessDialog = true
-                    },
+                    onClick = { viewModel.bookEvent(event, ticketCount) },
+                    enabled = !bookingLoading,
                     shape = RoundedCornerShape(10.dp)
                 ) { Text("Confirm Booking") }
             },
             dismissButton = {
                 OutlinedButton(
                     onClick = { showBookingDialog = false },
+                    enabled = !bookingLoading,
                     shape = RoundedCornerShape(10.dp)
                 ) { Text("Cancel") }
             }
@@ -127,7 +144,10 @@ fun UserEventDetailScreen(
     // Success dialog
     if (showSuccessDialog) {
         AlertDialog(
-            onDismissRequest = { showSuccessDialog = false },
+            onDismissRequest = { 
+                showSuccessDialog = false
+                navController.popBackStack()
+            },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF388E3C))
@@ -137,12 +157,12 @@ fun UserEventDetailScreen(
             },
             text = {
                 Column {
-                    Text("You've successfully booked $ticketCount ticket(s) for:")
+                    Text("You've successfully booked your ticket(s) for:")
                     Spacer(Modifier.height(4.dp))
                     Text(event.title, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Go to 'My Bookings' tab to view all your bookings.",
+                        "You can find your ticket in the 'My Bookings' tab.",
                         color = Color.Gray,
                         fontSize = 13.sp
                     )
@@ -175,7 +195,6 @@ fun UserEventDetailScreen(
             )
         },
         bottomBar = {
-            // Fixed Book Now button at bottom
             Surface(shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
                 Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     if (isBooked) {
@@ -212,11 +231,16 @@ fun UserEventDetailScreen(
                         Button(
                             onClick = { showBookingDialog = true },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !bookingLoading
                         ) {
-                            Icon(Icons.Default.ConfirmationNumber, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Book Now", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            if (bookingLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                            } else {
+                                Icon(Icons.Default.ConfirmationNumber, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Book Now", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
                         }
                     }
                 }
@@ -253,63 +277,35 @@ fun UserEventDetailScreen(
             }
 
             Column(modifier = Modifier.padding(16.dp)) {
-                // Category chip
                 if (event.category.isNotBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            event.category,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Text(event.category, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(10.dp))
                 }
 
-                // Title
                 Text(event.title, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp)
                 Spacer(Modifier.height(16.dp))
 
-                // Info rows
                 EventDetailInfoRow(Icons.Default.CalendarToday, "Date & Time", "${event.date}${if (event.time.isNotBlank()) "  •  ${event.time}" else ""}")
                 EventDetailInfoRow(Icons.Default.LocationOn, "Venue", event.location)
-                EventDetailInfoRow(
-                    Icons.Default.ConfirmationNumber,
-                    "Ticket Price",
-                    if (event.price.isBlank() || event.price == "0") "Free" else "Rs ${event.price}"
-                )
-                // Live availability — updates immediately when anyone books
+                EventDetailInfoRow(Icons.Default.ConfirmationNumber, "Ticket Price", if (event.price.isBlank() || event.price == "0") "Free" else "Rs ${event.price}")
+                
                 if (ticketsTotal > 0) {
                     val availColor = when {
                         ticketsRemaining == 0 -> Color(0xFFD32F2F)
                         ticketsRemaining <= (ticketsTotal * 0.1f).coerceAtLeast(3f) -> Color(0xFFE65100)
                         else -> MaterialTheme.colorScheme.onSurface
                     }
-                    EventDetailInfoRow(
-                        icon = Icons.Default.People,
-                        label = "Availability",
-                        value = if (ticketsRemaining == 0) "Sold Out" else "$ticketsRemaining of $ticketsTotal tickets remaining",
-                        valueColor = availColor
-                    )
+                    EventDetailInfoRow(icon = Icons.Default.People, label = "Availability", value = if (ticketsRemaining == 0) "Sold Out" else "$ticketsRemaining of $ticketsTotal tickets remaining", valueColor = availColor)
                 }
 
-                // Description
                 if (event.description.isNotBlank()) {
                     Spacer(Modifier.height(20.dp))
                     Text("About this Event", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        event.description,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 22.sp
-                    )
+                    Text(event.description, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 22.sp)
                 }
-
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -317,34 +313,15 @@ fun UserEventDetailScreen(
 }
 
 @Composable
-private fun EventDetailInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    valueColor: Color? = null
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        ),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
+private fun EventDetailInfoRow(icon: ImageVector, label: String, value: String, valueColor: Color? = null) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), elevation = CardDefaults.cardElevation(0.dp)) {
         Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    value,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = valueColor ?: MaterialTheme.colorScheme.onSurface
-                )
+                Text(value, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = valueColor ?: MaterialTheme.colorScheme.onSurface)
             }
         }
     }
 }
-
-

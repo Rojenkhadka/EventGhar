@@ -1,5 +1,6 @@
 package com.example.eventghar
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,38 +20,40 @@ import com.example.eventghar.ui.user.UserEventDetailScreen
 fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "login") {
-        composable("login") { 
+        composable("login") {
             LoginScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onThemeToggle = onThemeToggle
-            ) 
+            )
         }
-        composable("registration") { 
+        composable("registration") {
             RegistrationScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onThemeToggle = onThemeToggle
-            ) 
+            )
         }
-        composable("forgot_password") { 
+        composable("forgot_password") {
             ForgotPasswordScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onThemeToggle = onThemeToggle
-            ) 
+            )
         }
-        composable("dashboard") { 
+        composable("dashboard") {
             DashboardScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onThemeToggle = onThemeToggle
-            ) 
+            )
         }
-        composable("admin_dashboard") { 
-            AdminDashboardScreen(navController = navController) 
+        composable("admin_dashboard") {
+            AdminDashboardScreen(navController = navController)
         }
-        composable("organizer_dashboard") { 
+        composable("organizer_dashboard") {
+            // Prevent back-navigating to any previous screen (login, user_dashboard, etc.)
+            BackHandler(enabled = true) { /* consume — organizer dashboard is root, back does nothing */ }
             OrganizerDashboardScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
@@ -58,6 +61,8 @@ fun AppNavigation(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
             )
         }
         composable("user_dashboard") {
+            // Prevent back-navigating to any previous screen (login, organizer_dashboard, etc.)
+            BackHandler(enabled = true) { /* consume — user dashboard is root, back does nothing */ }
             UserDashboardScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,

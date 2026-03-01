@@ -1,6 +1,8 @@
 package com.example.eventghar.ui.user
 
 import android.app.Application
+import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.eventghar.data.BookingDataStore
@@ -13,29 +15,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.Locale
-
-data class Booking(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val eventId: String = "",
-    val eventTitle: String = "",
-    val eventDate: String = "",
-    val eventLocation: String = "",
-    val eventPrice: String = "",
-    val coverImageUri: String = "",
-    val userId: String = "",
-    val ticketCount: Int = 1,
-    val totalAmount: String = ""
-)
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 class PublicEventViewModel(application: Application) : AndroidViewModel(application) {
 
-    // All published events from all organizers
     private val _publishedEvents = MutableStateFlow<List<Event>>(emptyList())
     val publishedEvents: StateFlow<List<Event>> = _publishedEvents.asStateFlow()
 
-    // Bookings for the current user
     private val _myBookings = MutableStateFlow<List<Booking>>(emptyList())
     val myBookings: StateFlow<List<Booking>> = _myBookings.asStateFlow()
+
+    private val _bookingLoading = MutableStateFlow(false)
+    val bookingLoading: StateFlow<Boolean> = _bookingLoading.asStateFlow()
+
+    private val _bookingStatus = MutableStateFlow<Boolean?>(null)
+    val bookingStatus: StateFlow<Boolean?> = _bookingStatus.asStateFlow()
 
     private val currentUserId: String
         get() = FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -46,17 +42,14 @@ class PublicEventViewModel(application: Application) : AndroidViewModel(applicat
                 EventDataStore.eventsFlow(),
                 BookingDataStore.bookingsFlow()
             ) { allEvents: List<Event>, allBookings: List<Booking> ->
-                val validPublished = allEvents.filter { event ->
-                    event.status == "published" &&
-                    event.title.trim().length >= 3 &&
-                    event.location.trim().length >= 2 &&
-                    event.date.isNotBlank() &&
-                    (event.price.isBlank() || event.price.toDoubleOrNull() != null)
-                }
+                val uid = currentUserId
+                // Only published events visible on home/events tab
+                val validPublished = allEvents.filter { it.status == "published" }
+                // Valid event IDs set — any event that still exists (published or draft)
                 val existingEventIds = allEvents.map { it.id }.toSet()
-                val myFilteredBookings = allBookings.filter { booking ->
-                    booking.userId == currentUserId &&
-                    existingEventIds.contains(booking.eventId)
+                // Only show bookings whose event still exists in Firestore
+                val myFilteredBookings = allBookings.filter {
+                    it.userId == uid && it.eventId in existingEventIds
                 }
                 Pair(validPublished, myFilteredBookings)
             }.collect { pair ->
@@ -66,9 +59,23 @@ class PublicEventViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun resetBookingStatus() {
+        _bookingStatus.value = null
+        _bookingLoading.value = false
+    }
+
     fun bookEvent(event: Event, ticketCount: Int) {
-        val price = event.price.toFloatOrNull() ?: 0f
-        val total = price * ticketCount
+        val uid = currentUserId
+        if (uid.isBlank()) {
+            Toast.makeText(getApplication(), "Please log in to book tickets", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        _bookingLoading.value = true
+        _bookingStatus.value = null
+
+        val priceVal = event.price.replace("Rs", "").replace(",", "").trim().toFloatOrNull() ?: 0f
+        val total = priceVal * ticketCount
         val booking = Booking(
             eventId       = event.id,
             eventTitle    = event.title,
@@ -76,15 +83,29 @@ class PublicEventViewModel(application: Application) : AndroidViewModel(applicat
             eventLocation = event.location,
             eventPrice    = event.price,
             coverImageUri = event.coverImageUri ?: "",
-            userId        = currentUserId,
+            userId        = uid,
             ticketCount   = ticketCount,
             totalAmount   = String.format(Locale.getDefault(), "%.2f", total)
         )
+
         viewModelScope.launch {
-            BookingDataStore.addBooking(booking)
+            try {
+                // withContext(NonCancellable) ensures the write finishes even if user leaves screen
+                withContext(NonCancellable) {
+                    BookingDataStore.addBooking(booking)
+                }
+                _bookingStatus.value = true
+            } catch (e: Exception) {
+                if (e is CancellationException) return@launch
+                Log.e("PublicEventViewModel", "Booking failed", e)
+                _bookingStatus.value = false
+                Toast.makeText(getApplication(), "Booking failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            } finally {
+                _bookingLoading.value = false
+            }
         }
     }
 
     fun isEventBooked(eventId: String): Boolean =
-        _myBookings.value.any { it.eventId == eventId && it.userId == currentUserId }
+        _myBookings.value.any { it.eventId == eventId }
 }
